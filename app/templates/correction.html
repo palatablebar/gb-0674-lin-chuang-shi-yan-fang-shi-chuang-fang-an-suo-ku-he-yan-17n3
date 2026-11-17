@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% macro ctable(rows) %}
+<div class="table-frame"><table><thead><tr>
+{% if rows %}{% for col in ['correction_id','op','target','before','after','state','evidence_ref','attempts','last_error','produced_run_id','submitted_at'] %}<th>{{ meta.labels.get(col,col) }}</th>{% endfor %}{% endif %}
+</tr></thead><tbody>
+{% for row in rows %}
+<tr class="state-{{ row.state }}">
+<td>{{ row.correction_id }}</td><td><span class="chip chip-{{ row.op }}">{{ row.op }}</span></td><td>{{ row.target }}</td>
+<td>{{ row.before }}</td><td>{{ row.after }}</td>
+<td><span class="chip state-chip state-{{ row.state }}">{{ row.state }}</span></td>
+<td title="{{ row.reason }}">{{ row.evidence_ref }}</td><td>{{ row.attempts }}</td>
+<td title="{{ row.last_error }}">{{ row.last_error }}</td><td>{{ row.produced_run_id }}</td><td>{{ row.submitted_at }}</td>
+</tr>
+{% else %}<tr><td>暂无更正记录。</td></tr>{% endfor %}
+</tbody></table></div>
+{% endmacro %}
+{% block content %}
+<div class="grid correction-grid">
+<section class="panel main-panel">
+ <div class="panel__head"><h2>更正台账（追加留痕，不删记录）</h2><span>{{ view.rows|length }} 条 · 生效批次 {{ state.correction_board.active_run_id }}</span></div>
+ <div class="correction-kpis">
+  <div class="mini"><label>新增</label><b>{{ view.metrics['新增'] }}</b></div>
+  <div class="mini"><label>变更</label><b>{{ view.metrics['变更'] }}</b></div>
+  <div class="mini"><label>撤回</label><b>{{ view.metrics['撤回'] }}</b></div>
+  <div class="mini warn"><label>待处理</label><b>{{ view.metrics['待处理'] }}</b></div>
+  <div class="mini"><label>已证实待构建</label><b>{{ view.metrics['已证实'] }}</b></div>
+  <div class="mini ok"><label>已生效</label><b>{{ view.metrics['已生效'] }}</b></div>
+  <div class="mini bad"><label>已拒绝</label><b>{{ view.metrics['已拒绝'] }}</b></div>
+ </div>
+ {{ ctable(view.rows) }}
+</section>
+<section class="panel">
+ <div class="panel__head"><h2>批次血缘：为何可替换 / 继续等待</h2><span>根批次 {{ state.correction_board.root_run_id }}</span></div>
+ <div class="table-frame"><table><thead><tr><th>批号</th><th>当前生效</th><th>含更正</th><th>锁库状态</th><th>替换结论</th><th>生成时刻</th></tr></thead><tbody>
+ {% for row in view.lineage_rows %}
+ <tr class="{% if row.active_run_id=='是' %}active-row{% endif %}">
+ <td>{{ row.run_id }}</td><td>{{ row.active_run_id }}</td><td>{{ row.correction_ids }}</td><td>{{ row.status }}</td>
+ <td class="reason-cell" title="{{ row.replacement }}">{{ row.replacement }}</td><td>{{ row.generated_at }}</td></tr>
+ {% else %}<tr><td>暂无血缘。</td></tr>{% endfor %}
+ </tbody></table></div>
+ <div class="wait-box">
+  <b>继续等待的更正（未证实，不进入复检与锁库判断）：</b>
+  <p>{{ state.correction_board.waiting|join('、') if state.correction_board.waiting else '无' }}</p>
+  <b>已拒绝（证据不足，数值永不替换当前批次）：</b>
+  <p>{{ state.correction_board.rejected|join('、') if state.correction_board.rejected else '无' }}</p>
+ </div>
+</section>
+<section class="panel full-panel">
+ <div class="panel__head"><h2>登记迟到更正</h2><span>提交后为“待处理”，证据闸门通过才生效</span></div>
+ <form id="correction-form" class="correction-form">
+  <label>动作
+   <select name="op"><option value="UPDATE">变更 UPDATE</option><option value="ADD">新增 ADD</option><option value="WITHDRAW">撤回 WITHDRAW</option></select>
+  </label>
+  <label>目标记录号<input name="target" required placeholder="如 00003-V1"></label>
+  <label>更正后取值（撤回留空）<input name="value" placeholder="如 126"></label>
+  <label>证据文档号<input name="evidence_ref" required placeholder="如 SRC-2026-1117-03"></label>
+  <label class="wide">证据原文（须含目标记录号与更正后数值）<textarea name="evidence_text" required placeholder="00003-V1 复核化验单 SRC-2026-1117-03 实测 126 mg/dL"></textarea></label>
+  <label class="wide">原因<input name="reason" placeholder="迟到更正原因"></label>
+  <button type="submit">登记更正</button>
+ </form>
+ <output id="feedback" aria-live="polite"></output>
+</section>
+<section class="panel full-panel">
+ <div class="panel__head"><h2>证据闸门操作</h2><span>校验证据 → 重建批次；失败自动保留旧版结果</span></div>
+ <div class="gate-row">
+  <input id="gate-id" placeholder="更正号 CR-xxxx">
+  <button id="verify-btn" type="button">校验并生效</button>
+  <button id="reject-btn" type="button" class="ghost">人工驳回</button>
+  <button id="retry-btn" type="button" class="ghost">重试替换</button>
+ </div>
+</section>
+</div>
+<script>
+const runId={{ state.manifest.run_id|tojson }};
+const fb=document.querySelector('#feedback');
+function show(msg,bad){fb.textContent=msg;fb.style.color=bad?'var(--bad)':'var(--ok)';}
+document.querySelector('#correction-form').addEventListener('submit',async e=>{
+ e.preventDefault();const f=new FormData(e.target);
+ const op=f.get('op');const payload={op,target:f.get('target').trim(),
+  payload:op==='WITHDRAW'?{}:{value:f.get('value').trim()},
+  evidence_ref:f.get('evidence_ref').trim(),evidence_text:f.get('evidence_text'),
+  reason:f.get('reason')};
+ const r=await fetch('/api/runs/'+runId+'/corrections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ const d=await r.json();if(!r.ok)return show(d.detail,true);show(d.notice+'：'+d.correction.correction_id);setTimeout(()=>location.reload(),900);
+});
+async function gate(path,body){
+ const cid=document.querySelector('#gate-id').value.trim();if(!cid)return show('请输入更正号',true);
+ const r=await fetch('/api/corrections/'+cid+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+ const d=await r.json();if(!r.ok)return show(d.detail,true);
+ show(d.notice+(d.replacement?(' → 新批次 '+d.replacement.run_id):''));setTimeout(()=>location.reload(),1100);
+}
+document.querySelector('#verify-btn').addEventListener('click',()=>gate('/verify',{}));
+document.querySelector('#reject-btn').addEventListener('click',()=>gate('/verify',{decision:'reject'}));
+document.querySelector('#retry-btn').addEventListener('click',()=>gate('/retry'));
+</script>
+{% endblock %}

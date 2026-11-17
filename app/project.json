@@ -10,7 +10,8 @@
     "偏离复核",
     "复检裁决",
     "锁库检查",
-    "冻结归档"
+    "冻结归档",
+    "迟到更正"
   ],
   "rule": "按入组基准计算访视半开窗，方案修订按受试者生效时间选版；漏访不可用复检伪填",
   "lane": "L4",
@@ -29,7 +30,8 @@
     "deviation",
     "retest",
     "locking",
-    "archive"
+    "archive",
+    "correction"
   ],
   "labels": {
     "id": "记录号",
@@ -62,6 +64,22 @@
     "deviations": "偏离",
     "retest_issues": "复检问题",
     "blocked": "阻断项",
-    "status": "状态"
+    "status": "状态",
+    "correction_id": "更正号",
+    "op": "动作",
+    "target": "目标记录",
+    "before": "更正前",
+    "after": "更正后",
+    "evidence_ref": "证据文档号",
+    "evidence_hash": "证据哈希",
+    "state": "更正状态",
+    "reason": "原因",
+    "base_run_id": "基础批次",
+    "active_run_id": "生效批次",
+    "replacement": "替换结论",
+    "submitted_at": "登记时刻",
+    "verified_at": "证实时刻",
+    "attempts": "尝试次数",
+    "last_error": "最近失败原因"
   }
 }

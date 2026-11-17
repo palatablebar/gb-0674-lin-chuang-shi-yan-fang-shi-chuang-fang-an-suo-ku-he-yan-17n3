@@ -13,6 +13,7 @@
 | M5 复检裁决 | 执行并复核复检裁决 | `POST /api/retest` | `app/modules/retest/rules.py` | `tests/test_retest.py` |
 | M6 锁库检查 | 执行并复核锁库检查 | `POST /api/locking` | `app/modules/locking/rules.py` | `tests/test_locking.py` |
 | M7 冻结归档 | 执行并复核冻结归档 | `POST /api/archive` | `app/modules/archive/rules.py` | `tests/test_archive.py` |
+| M8 迟到更正 | 登记并裁决迟到更正 | `POST /api/correction` | `app/modules/correction/rules.py` | `tests/test_correction.py` |
 
 ## 陷阱登记
 
@@ -29,6 +30,10 @@
 | TRAP-15 | 检验单位换算 | 静默错算或证据丢失 | 以可复核规则显式处理 | `app/modules/protocol/rules.py` | `tests/test_protocol.py::test_unit_conversion_real` |
 | TRAP-23 | 访视窗末端 | 静默错算或证据丢失 | 以可复核规则显式处理 | `app/modules/windows/rules.py` | `tests/test_windows.py::test_half_open_end` |
 | TRAP-11 | UTC日历归一 | 静默错算或证据丢失 | 以可复核规则显式处理 | `app/modules/windows/rules.py` | `tests/test_windows.py::test_utc_day_equivalence` |
+| TRAP-31 | 迟到更正缺原始依据 | 未证实数值直接进入复检与锁库 | 证据闸门未过即拒绝，只留痕不替换 | `app/modules/correction/rules.py` | `tests/test_correction.py::test_evidence_gate_value_unproven` |
+| TRAP-32 | 更正重试产生重复结果 | 每点一次多一条批次 | 更正号由血缘根+载荷+证据哈希派生，幂等不新增 | `app/store.py` | `tests/test_correction.py::test_idempotent_retry_no_duplicate` |
+| TRAP-33 | 替换失败覆盖旧批 | 重建异常后无可用批次 | 活跃指针仅在构建成功后移动，失败保留旧版 | `app/modules/correction/service.py` | `tests/test_correction.py::test_rebuild_failure_keeps_old_batch_and_retry_succeeds` |
+| TRAP-34 | 更正记录被删除 | 前后证据断链 | 追加式台账+事件日志，撤回只作用于新批，旧批不删 | `app/store.py` | `tests/test_correction.py::test_withdraw_and_add_corrections` |
 
 ## 对账规则
 
